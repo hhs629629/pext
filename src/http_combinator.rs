@@ -53,8 +53,6 @@ fn host(input: &[u8]) -> IResult<&[u8], &[u8]> {
     todo!();
 }
 
-
-
 fn unreserved(input: &[u8]) -> IResult<&[u8], &[u8]> {
     alt((alpha1, digit1, tag("-"), tag("."), tag("_"), tag("~")))(input)
 }
