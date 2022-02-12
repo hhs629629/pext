@@ -24,6 +24,31 @@ pub fn method(input: &[u8]) -> IResult<&[u8], &[u8]> {
     ))(input)
 }
 
+pub fn http_version(input: &[u8]) -> IResult<&[u8], &[u8]> {
+    let (rest, _version) = tuple((tag("HTTP/"), digit1, tag("."), digit1))(input)?;
+    let len = input.len() - rest.len();
+
+    Ok((rest, &input[0..len]))
+}
+
+pub fn field_name(input: &[u8]) -> IResult<&[u8], &[u8]> {
+    token(input)
+}
+
+pub fn field_value(input: &[u8]) -> IResult<&[u8], &[u8]> {
+    let (rest, _) = many0(alt((field_content, lws)))(input)?;
+    let len = input.len() - rest.len();
+
+    Ok((rest, &input[0..len]))
+}
+
+pub fn field_content(input: &[u8]) -> IResult<&[u8], &[u8]> {
+    let (rest, _) = alt((many1(texts), many1(alt((token, separators, quoted_string)))))(input)?;
+    let len = input.len() - rest.len();
+
+    Ok((rest, &input[0..len]))
+}
+
 #[cfg(test)]
 mod test {
     use super::*;
@@ -38,5 +63,43 @@ mod test {
             method(b"POST http://www.w3.org/pub/WWW/TheProject.html HTTP/1.1").unwrap();
         assert_eq!(b"POST", mthd);
         assert_eq!(b" http://www.w3.org/pub/WWW/TheProject.html HTTP/1.1", rest);
+    }
+
+    #[test]
+    fn test_http_version() {
+        let (rest, mthd) = http_version(b"HTTP/1.1Free").unwrap();
+        assert_eq!(b"HTTP/1.1", mthd);
+        assert_eq!(b"Free", rest);
+
+        let (rest, mthd) = http_version(b"HTTP/233.12 Version").unwrap();
+        assert_eq!(b"HTTP/233.12", mthd);
+        assert_eq!(b" Version", rest);
+    }
+
+    #[test]
+    fn test_field_name() {
+        let (rest, name) =
+            field_name(b"User-Agent: Mozilla/4.0 (compatible; MSIE5.01; Windows NT)\r\n").unwrap();
+        assert_eq!(b"User-Agent", name);
+        assert_eq!(
+            b": Mozilla/4.0 (compatible; MSIE5.01; Windows NT)\r\n",
+            rest
+        );
+    }
+
+    #[test]
+    fn test_field_value() {
+        let (rest, val) =
+            field_value(b" Mozilla/4.0 (compatible; MSIE5.01; Windows NT)\r\n").unwrap();
+        assert_eq!(b" Mozilla/4.0 (compatible; MSIE5.01; Windows NT)", val);
+        assert_eq!(b"\r\n", rest);
+    }
+
+    #[test]
+    fn test_field_content() {
+        let (rest, val) =
+            field_content(b" Mozilla/4.0 (compatible; MSIE5.01; Windows NT)\r\n").unwrap();
+        assert_eq!(b" Mozilla/4.0 (compatible; MSIE5.01; Windows NT)", val);
+        assert_eq!(b"\r\n", rest);
     }
 }
