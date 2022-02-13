@@ -1,10 +1,5 @@
 use nom::{
-    branch::*,
-    bytes::complete::*,
-    character::{complete::*, is_hex_digit},
-    combinator::*,
-    multi::*,
-    sequence::*,
+    branch::*, bytes::complete::*, character::complete::*, combinator::*, multi::*, sequence::*,
     IResult,
 };
 
@@ -36,14 +31,15 @@ pub fn field_name(input: &[u8]) -> IResult<&[u8], &[u8]> {
 }
 
 pub fn field_value(input: &[u8]) -> IResult<&[u8], &[u8]> {
-    let (rest, _) = many0(alt((field_content, lws)))(input)?;
+    let (rest, _) = many0(field_content)(input)?;
     let len = input.len() - rest.len();
 
     Ok((rest, &input[0..len]))
 }
 
-pub fn field_content(input: &[u8]) -> IResult<&[u8], &[u8]> {
-    let (rest, _) = alt((many1(texts), many1(alt((token, separators, quoted_string)))))(input)?;
+
+pub fn ows(input: &[u8]) -> IResult<&[u8], &[u8]> {
+    let (rest, _) = many0(alt((space1, htab)))(input)?;
     let len = input.len() - rest.len();
 
     Ok((rest, &input[0..len]))
@@ -90,16 +86,22 @@ mod test {
     #[test]
     fn test_field_value() {
         let (rest, val) =
-            field_value(b" Mozilla/4.0 (compatible; MSIE5.01; Windows NT)\r\n").unwrap();
-        assert_eq!(b" Mozilla/4.0 (compatible; MSIE5.01; Windows NT)", val);
+            field_value(b"Mozilla/4.0 (compatible; MSIE5.01; Windows NT)\r\n").unwrap();
+        assert_eq!(b"Mozilla/4.0 (compatible; MSIE5.01; Windows NT)", val);
         assert_eq!(b"\r\n", rest);
     }
 
     #[test]
-    fn test_field_content() {
-        let (rest, val) =
-            field_content(b" Mozilla/4.0 (compatible; MSIE5.01; Windows NT)\r\n").unwrap();
-        assert_eq!(b" Mozilla/4.0 (compatible; MSIE5.01; Windows NT)", val);
+    fn test_header_field() {
+        let (rest, (name,value)) =
+            terminated(
+                separated_pair(field_name, tuple((tag(":"), ows)), field_value),
+                ows,
+            )(b"User-Agent: Mozilla/4.0 (compatible; MSIE5.01; Windows NT)\r\n")
+            .unwrap();
+
+        assert_eq!(b"User-Agent", name);
+        assert_eq!(b"Mozilla/4.0 (compatible; MSIE5.01; Windows NT)", value);
         assert_eq!(b"\r\n", rest);
     }
 }
