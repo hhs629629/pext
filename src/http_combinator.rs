@@ -37,7 +37,6 @@ pub fn field_value(input: &[u8]) -> IResult<&[u8], &[u8]> {
     Ok((rest, &input[0..len]))
 }
 
-
 pub fn ows(input: &[u8]) -> IResult<&[u8], &[u8]> {
     let (rest, _) = many0(alt((space1, htab)))(input)?;
     let len = input.len() - rest.len();
@@ -48,6 +47,7 @@ pub fn ows(input: &[u8]) -> IResult<&[u8], &[u8]> {
 #[cfg(test)]
 mod test {
     use super::*;
+
     #[test]
     fn test_method() {
         let (rest, mthd) =
@@ -93,7 +93,7 @@ mod test {
 
     #[test]
     fn test_header_field() {
-        let (rest, (name,value)) =
+        let (rest, (name, value)) =
             terminated(
                 separated_pair(field_name, tuple((tag(":"), ows)), field_value),
                 ows,

@@ -28,7 +28,6 @@ pub fn tchar(input: &[u8]) -> IResult<&[u8], &[u8]> {
     map_parser(take(1usize), alt((is_a("!#$%&'*+-.^_`|~"), digit1, alpha1)))(input)
 }
 
-
 pub fn htab(input: &[u8]) -> IResult<&[u8], &[u8]> {
     tag("\t")(input)
 }
