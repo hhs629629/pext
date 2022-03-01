@@ -9,3 +9,4 @@ mod response;
 pub mod http_combinator;
 pub use crate::error::FromUtf8Err;
 pub use crate::http_ext::{FromUtf8, IntoUtf8};
+pub use crate::partial_request::PartialRequest;
