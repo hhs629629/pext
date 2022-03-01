@@ -1,7 +1,4 @@
-use nom::{
-    branch::*, bytes::complete::*, character::complete::*, combinator::*, multi::*, sequence::*,
-    IResult,
-};
+use nom::{branch::*, bytes::complete::*, character::complete::*, multi::*, sequence::*, IResult};
 
 use crate::basic_combinator::*;
 

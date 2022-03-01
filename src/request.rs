@@ -1,5 +1,5 @@
 use http::{Request, Version};
-use nom::{bytes::complete::*, combinator::*, multi::*, sequence::*};
+use nom::{bytes::complete::*, multi::*, sequence::*};
 
 use crate::error::*;
 use crate::http_combinator::*;
@@ -43,7 +43,6 @@ impl FromUtf8 for Request<Vec<u8>> {
         Ok(builder.body(rest.to_vec()).unwrap())
     }
 }
-
 
 #[cfg(test)]
 mod test {
