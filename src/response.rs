@@ -1,12 +1,23 @@
 use http::Response;
 
-use crate::FromUtf8;
+use crate::IntoUtf8;
 
-impl FromUtf8 for Response<Vec<u8>> {
-    fn from_utf8<'a>(buf: &'a [u8]) -> Result<Self, nom::Err<nom::error::Error<&[u8]>>>
-    where
-        Self: Sized,
-    {
-        todo!()
+impl IntoUtf8 for Response<Vec<u8>> {
+    fn into_utf8(&self) -> Result<Vec<u8>, ()> {
+        let mut result = Vec::new();
+        result.append(&mut self.version().into_utf8()?);
+        result.push(b' ');
+
+        result.append(&mut self.status().into_utf8()?);
+        result.push(b'\r');
+        result.push(b'\n');
+
+        result.append(&mut self.headers().into_utf8()?);
+        result.push(b'\r');
+        result.push(b'\n');
+
+        result.append(&mut self.body().clone());
+
+        Ok(result)
     }
 }
