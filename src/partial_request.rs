@@ -1,5 +1,5 @@
 use http::header::HeaderName;
-use http::{HeaderMap, HeaderValue, Method, Uri, Version};
+use http::{HeaderMap, HeaderValue, Method, Request, Uri, Version};
 
 use nom::{bytes::complete::*, multi::*, sequence::*};
 
@@ -9,18 +9,17 @@ use crate::error::*;
 use crate::http_combinator::*;
 use crate::FromUtf8;
 
-struct NeedMethod;
-struct NeedUri;
-struct NeedVersion;
-struct NeedHeader;
-struct NeedBody;
+pub struct NeedMethod;
+pub struct NeedUri;
+pub struct NeedVersion;
+pub struct NeedHeader;
+pub struct NeedBody;
 
-struct PartialRequest {
+pub struct PartialRequest {
     method: Option<Method>,
     uri: Option<Uri>,
     version: Option<Version>,
     headers: Option<HeaderMap>,
-    body: Option<Vec<u8>>,
     rest: Vec<u8>,
 }
 
@@ -31,7 +30,6 @@ impl PartialRequest {
             uri: None,
             version: None,
             headers: None,
-            body: None,
             rest: Vec::new(),
         };
         PartialRequestBuilder {
@@ -42,7 +40,7 @@ impl PartialRequest {
     }
 }
 
-struct PartialRequestBuilder<'a, T> {
+pub struct PartialRequestBuilder<'a, T> {
     input: &'a [u8],
     result: PartialRequest,
     _phantom: PhantomData<T>,
@@ -57,8 +55,8 @@ impl<'a, T> PartialRequestBuilder<'a, T> {
 
 impl<'a> PartialRequestBuilder<'a, NeedMethod> {
     pub fn method(mut self) -> Result<PartialRequestBuilder<'a, NeedUri>, FromUtf8Err> {
-        let (rest, method) =
-            method(self.input).map_err(|e| e.into_parse_error(ErrorKind::Method))?;
+        let (rest, method) = terminated(method, tag(" "))(self.input)
+            .map_err(|e| e.into_parse_error(ErrorKind::Method))?;
 
         self.result.method = Method::from_bytes(method).ok();
 
@@ -148,8 +146,15 @@ impl<'a> PartialRequestBuilder<'a, NeedHeader> {
 }
 
 impl<'a> PartialRequestBuilder<'a, NeedBody> {
-    pub fn body(mut self) -> PartialRequest {
-        self.result.body = Some(self.input.to_vec());
-        self.result
+    pub fn body(self) -> Request<Vec<u8>> {
+        let mut builder = Request::builder()
+            .method(self.result.method.unwrap())
+            .uri(self.result.uri.unwrap())
+            .version(self.result.version.unwrap());
+
+        for (name, value) in self.result.headers.unwrap() {
+            builder = builder.header(name.unwrap(), value);
+        }
+        builder.body(self.input.to_vec()).unwrap()
     }
 }
