@@ -32,14 +32,10 @@ impl PartialRequest {
             headers: None,
             rest: Vec::new(),
         };
-        PartialRequestBuilder {
-            input,
-            result,
-            _phantom: PhantomData,
-        }
+        PartialRequestBuilder::init(input, result)
     }
 
-    pub fn build_rest(mut self) -> Result<Request<Vec<u8>>, FromUtf8Err> {
+    pub fn parse_rest(mut self) -> Result<Request<Vec<u8>>, FromUtf8Err> {
         let mut buf = Vec::new();
         std::mem::swap(&mut buf, &mut self.rest);
 
@@ -66,6 +62,22 @@ impl PartialRequest {
         .body();
 
         Ok(result)
+    }
+
+    pub fn method(&self) -> &Option<Method> {
+        &self.method
+    }
+
+    pub fn uri(&self) -> &Option<Uri> {
+        &self.uri
+    }
+
+    pub fn version(&self) -> &Option<Version> {
+        &self.version
+    }
+
+    pub fn headers(&self) -> &Option<HeaderMap> {
+        &self.headers
     }
 }
 
