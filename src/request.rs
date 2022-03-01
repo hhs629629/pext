@@ -1,7 +1,7 @@
-use http::Request;
 use crate::error::*;
 use crate::FromUtf8;
 use crate::PartialRequest;
+use http::Request;
 
 impl FromUtf8 for Request<Vec<u8>> {
     fn from_utf8<'a>(buf: &'a [u8]) -> Result<Self, FromUtf8Err>
@@ -19,7 +19,7 @@ impl FromUtf8 for Request<Vec<u8>> {
 
 #[cfg(test)]
 mod test {
-    use http::{Version, Method};
+    use http::{Method, Version};
 
     use super::*;
 
