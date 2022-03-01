@@ -17,6 +17,12 @@ pub struct FromUtf8Err {
     kind: ErrorKind,
 }
 
+impl FromUtf8Err {
+    pub fn init(input: String, kind: ErrorKind) -> Self {
+        Self { input, kind }
+    }
+}
+
 impl std::error::Error for FromUtf8Err {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
         None
