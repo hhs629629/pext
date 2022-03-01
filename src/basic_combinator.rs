@@ -32,10 +32,6 @@ pub fn htab(input: &[u8]) -> IResult<&[u8], &[u8]> {
     tag("\t")(input)
 }
 
-pub fn separator(input: &[u8]) -> IResult<&[u8], &[u8]> {
-    map_parser(take(1usize), is_a("()<>@,;:\\\"/[]?={} \t"))(input)
-}
-
 pub fn vchar(input: &[u8]) -> IResult<&[u8], &[u8]> {
     let (rest, _) = satisfy(|c| c >= 0x21 as char && c <= 0x7e as char)(input)?;
     let len = input.len() - rest.len();
@@ -48,9 +44,4 @@ pub fn obs_text(input: &[u8]) -> IResult<&[u8], &[u8]> {
     let len = input.len() - rest.len();
 
     Ok((rest, &input[0..len]))
-}
-
-#[cfg(test)]
-mod test {
-    use super::*;
 }
