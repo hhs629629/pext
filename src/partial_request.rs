@@ -38,6 +38,35 @@ impl PartialRequest {
             _phantom: PhantomData,
         }
     }
+
+    pub fn build_rest(mut self) -> Result<Request<Vec<u8>>, FromUtf8Err> {
+        let mut buf = Vec::new();
+        std::mem::swap(&mut buf, &mut self.rest);
+
+        let result = if self.headers.is_some() {
+            PartialRequestBuilder::<NeedBody>::init(&buf, self)
+        } else {
+            if self.version.is_some() {
+                PartialRequestBuilder::<NeedHeader>::init(&buf, self)
+            } else {
+                if self.uri.is_some() {
+                    PartialRequestBuilder::<NeedVersion>::init(&buf, self)
+                } else {
+                    if self.method.is_some() {
+                        PartialRequestBuilder::<NeedUri>::init(&buf, self)
+                    } else {
+                        PartialRequestBuilder::<NeedMethod>::init(&buf, self).method()?
+                    }
+                    .uri()?
+                }
+                .version()?
+            }
+            .headers()?
+        }
+        .body();
+
+        Ok(result)
+    }
 }
 
 pub struct PartialRequestBuilder<'a, T> {
@@ -47,6 +76,13 @@ pub struct PartialRequestBuilder<'a, T> {
 }
 
 impl<'a, T> PartialRequestBuilder<'a, T> {
+    fn init(input: &'a [u8], result: PartialRequest) -> Self {
+        Self {
+            input,
+            result,
+            _phantom: PhantomData,
+        }
+    }
     pub fn build(mut self) -> PartialRequest {
         self.result.rest = self.input.to_vec();
         self.result
