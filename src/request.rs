@@ -1,52 +1,25 @@
-use http::{Request, Version};
-use nom::{bytes::complete::*, multi::*, sequence::*};
-
+use http::Request;
 use crate::error::*;
-use crate::http_combinator::*;
 use crate::FromUtf8;
+use crate::PartialRequest;
 
 impl FromUtf8 for Request<Vec<u8>> {
     fn from_utf8<'a>(buf: &'a [u8]) -> Result<Self, FromUtf8Err>
     where
         Self: Sized,
     {
-        let (rest, method) =
-            terminated(method, tag(" "))(buf).map_err(|e| e.into_parse_error(ErrorKind::Method))?;
-
-        let (rest, uri) = terminated(is_not(" "), tag(" "))(rest)
-            .map_err(|e| e.into_parse_error(ErrorKind::Uri))?;
-
-        let (rest, http_version) = terminated(http_version, tag("\r\n"))(rest)
-            .map_err(|e| e.into_parse_error(ErrorKind::Version))?;
-
-        let (rest, headers) = terminated(
-            separated_list0(
-                tag("\r\n"),
-                terminated(
-                    separated_pair(field_name, tuple((tag(":"), ows)), field_value),
-                    ows,
-                ),
-            ),
-            tag("\r\n\r\n"),
-        )(rest)
-        .map_err(|e| e.into_parse_error(ErrorKind::Header))?;
-
-        let mut builder = Request::builder()
-            .method(method)
-            .uri(uri)
-            .version(Version::from_utf8(http_version)?);
-
-        for (name, value) in headers {
-            builder = builder.header(name, value);
-        }
-
-        Ok(builder.body(rest.to_vec()).unwrap())
+        Ok(PartialRequest::builder(buf)
+            .method()?
+            .uri()?
+            .version()?
+            .headers()?
+            .body())
     }
 }
 
 #[cfg(test)]
 mod test {
-    use http::Method;
+    use http::{Version, Method};
 
     use super::*;
 
