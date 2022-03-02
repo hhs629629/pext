@@ -1,4 +1,7 @@
-use nom::{branch::*, bytes::complete::*, character::complete::*, multi::*, sequence::*, IResult};
+use nom::{
+    branch::*, bytes::complete::*, character::complete::*, combinator::*, multi::*, sequence::*,
+    IResult,
+};
 
 use crate::basic_combinator::*;
 
@@ -18,6 +21,17 @@ pub fn method(input: &[u8]) -> IResult<&[u8], &[u8]> {
 
 pub fn http_version(input: &[u8]) -> IResult<&[u8], &[u8]> {
     let (rest, _version) = tuple((tag("HTTP/"), digit1, tag("."), digit1))(input)?;
+    let len = input.len() - rest.len();
+
+    Ok((rest, &input[0..len]))
+}
+
+pub fn status_code(input: &[u8]) -> IResult<&[u8], &[u8]> {
+    map_parser(take(3usize), digit1)(input)
+}
+
+pub fn reason_phrase(input: &[u8]) -> IResult<&[u8], &[u8]> {
+    let (rest, _reason_phrase) = many0(alt((htab, tag(" "), vchar, obs_text)))(input)?;
     let len = input.len() - rest.len();
 
     Ok((rest, &input[0..len]))

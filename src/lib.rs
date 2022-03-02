@@ -3,6 +3,7 @@ mod error;
 mod http_elements;
 mod http_ext;
 mod partial_request;
+mod partial_response;
 mod request;
 mod response;
 

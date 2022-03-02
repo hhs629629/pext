@@ -24,7 +24,7 @@ pub struct PartialRequest {
 }
 
 impl PartialRequest {
-    pub fn builder(input: &[u8]) -> PartialRequestBuilder<NeedMethod> {
+    pub fn builder(input: &[u8]) -> Builder<NeedMethod> {
         let result = PartialRequest {
             method: None,
             uri: None,
@@ -32,7 +32,7 @@ impl PartialRequest {
             headers: None,
             rest: Vec::new(),
         };
-        PartialRequestBuilder::init(input, result)
+        Builder::init(input, result)
     }
 
     pub fn parse_rest(mut self) -> Result<Request<Vec<u8>>, FromUtf8Err> {
@@ -40,18 +40,18 @@ impl PartialRequest {
         std::mem::swap(&mut buf, &mut self.rest);
 
         let result = if self.headers.is_some() {
-            PartialRequestBuilder::<NeedBody>::init(&buf, self)
+            Builder::<NeedBody>::init(&buf, self)
         } else {
             if self.version.is_some() {
-                PartialRequestBuilder::<NeedHeader>::init(&buf, self)
+                Builder::<NeedHeader>::init(&buf, self)
             } else {
                 if self.uri.is_some() {
-                    PartialRequestBuilder::<NeedVersion>::init(&buf, self)
+                    Builder::<NeedVersion>::init(&buf, self)
                 } else {
                     if self.method.is_some() {
-                        PartialRequestBuilder::<NeedUri>::init(&buf, self)
+                        Builder::<NeedUri>::init(&buf, self)
                     } else {
-                        PartialRequestBuilder::<NeedMethod>::init(&buf, self).method()?
+                        Builder::<NeedMethod>::init(&buf, self).method()?
                     }
                     .uri()?
                 }
@@ -81,13 +81,13 @@ impl PartialRequest {
     }
 }
 
-pub struct PartialRequestBuilder<'a, T> {
+pub struct Builder<'a, T> {
     input: &'a [u8],
     result: PartialRequest,
     _phantom: PhantomData<T>,
 }
 
-impl<'a, T> PartialRequestBuilder<'a, T> {
+impl<'a, T> Builder<'a, T> {
     fn init(input: &'a [u8], result: PartialRequest) -> Self {
         Self {
             input,
@@ -101,14 +101,14 @@ impl<'a, T> PartialRequestBuilder<'a, T> {
     }
 }
 
-impl<'a> PartialRequestBuilder<'a, NeedMethod> {
-    pub fn method(mut self) -> Result<PartialRequestBuilder<'a, NeedUri>, FromUtf8Err> {
+impl<'a> Builder<'a, NeedMethod> {
+    pub fn method(mut self) -> Result<Builder<'a, NeedUri>, FromUtf8Err> {
         let (rest, method) = terminated(method, tag(" "))(self.input)
             .map_err(|e| e.into_parse_error(ErrorKind::Method))?;
 
         self.result.method = Method::from_bytes(method).ok();
 
-        Ok(PartialRequestBuilder {
+        Ok(Builder {
             input: rest,
             result: self.result,
             _phantom: PhantomData,
@@ -116,8 +116,8 @@ impl<'a> PartialRequestBuilder<'a, NeedMethod> {
     }
 }
 
-impl<'a> PartialRequestBuilder<'a, NeedUri> {
-    pub fn uri(mut self) -> Result<PartialRequestBuilder<'a, NeedVersion>, FromUtf8Err> {
+impl<'a> Builder<'a, NeedUri> {
+    pub fn uri(mut self) -> Result<Builder<'a, NeedVersion>, FromUtf8Err> {
         let (rest, uri) = terminated(is_not(" "), tag(" "))(self.input)
             .map_err(|e| e.into_parse_error(ErrorKind::Uri))?;
 
@@ -128,7 +128,7 @@ impl<'a> PartialRequestBuilder<'a, NeedUri> {
 
         self.result.uri = Some(uri);
 
-        Ok(PartialRequestBuilder {
+        Ok(Builder {
             input: rest,
             result: self.result,
             _phantom: PhantomData,
@@ -136,8 +136,8 @@ impl<'a> PartialRequestBuilder<'a, NeedUri> {
     }
 }
 
-impl<'a> PartialRequestBuilder<'a, NeedVersion> {
-    pub fn version(mut self) -> Result<PartialRequestBuilder<'a, NeedHeader>, FromUtf8Err> {
+impl<'a> Builder<'a, NeedVersion> {
+    pub fn version(mut self) -> Result<Builder<'a, NeedHeader>, FromUtf8Err> {
         let (rest, http_version) = terminated(http_version, tag("\r\n"))(self.input)
             .map_err(|e| e.into_parse_error(ErrorKind::Version))?;
 
@@ -145,7 +145,7 @@ impl<'a> PartialRequestBuilder<'a, NeedVersion> {
 
         self.result.version = Some(version);
 
-        Ok(PartialRequestBuilder {
+        Ok(Builder {
             input: rest,
             result: self.result,
             _phantom: PhantomData,
@@ -153,8 +153,8 @@ impl<'a> PartialRequestBuilder<'a, NeedVersion> {
     }
 }
 
-impl<'a> PartialRequestBuilder<'a, NeedHeader> {
-    pub fn headers(mut self) -> Result<PartialRequestBuilder<'a, NeedBody>, FromUtf8Err> {
+impl<'a> Builder<'a, NeedHeader> {
+    pub fn headers(mut self) -> Result<Builder<'a, NeedBody>, FromUtf8Err> {
         let (rest, headers) = terminated(
             separated_list0(
                 tag("\r\n"),
@@ -185,7 +185,7 @@ impl<'a> PartialRequestBuilder<'a, NeedHeader> {
 
         self.result.headers = Some(header_map);
 
-        Ok(PartialRequestBuilder {
+        Ok(Builder {
             input: rest,
             result: self.result,
             _phantom: PhantomData,
@@ -193,16 +193,19 @@ impl<'a> PartialRequestBuilder<'a, NeedHeader> {
     }
 }
 
-impl<'a> PartialRequestBuilder<'a, NeedBody> {
+impl<'a> Builder<'a, NeedBody> {
     pub fn body(self) -> Request<Vec<u8>> {
-        let mut builder = Request::builder()
-            .method(self.result.method.unwrap())
-            .uri(self.result.uri.unwrap())
-            .version(self.result.version.unwrap());
+        unsafe {
+            let mut builder = Request::builder()
+                .method(self.result.method.unwrap_unchecked())
+                .uri(self.result.uri.unwrap_unchecked())
+                .version(self.result.version.unwrap_unchecked());
 
-        for (name, value) in self.result.headers.unwrap() {
-            builder = builder.header(name.unwrap(), value);
+            for (name, value) in self.result.headers.unwrap_unchecked().iter() {
+                builder = builder.header(name.clone(), value);
+            }
+
+            builder.body(self.input.to_vec()).unwrap()
         }
-        builder.body(self.input.to_vec()).unwrap()
     }
 }

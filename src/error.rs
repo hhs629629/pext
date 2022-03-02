@@ -9,6 +9,7 @@ pub enum ErrorKind {
     Uri,
     Version,
     Header,
+    StatusCode,
 }
 
 #[derive(Debug)]
