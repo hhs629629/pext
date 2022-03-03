@@ -1,5 +1,5 @@
 use http::header::HeaderName;
-use http::{Extensions, HeaderMap, HeaderValue, Response, StatusCode, Version};
+use http::{HeaderMap, HeaderValue, Response, StatusCode, Version};
 
 use nom::{bytes::complete::*, multi::*, sequence::*};
 
@@ -12,14 +12,12 @@ use crate::FromUtf8;
 pub struct NeedVersion;
 pub struct NeedStatus;
 pub struct NeedHeader;
-pub struct NeedExtension;
 pub struct NeedBody;
 
 pub struct PartialResponse {
     version: Option<Version>,
     status: Option<StatusCode>,
     headers: Option<HeaderMap>,
-    extensions: Option<Extensions>,
     rest: Vec<u8>,
 }
 
@@ -29,10 +27,33 @@ impl PartialResponse {
             version: None,
             status: None,
             headers: None,
-            extensions: None,
             rest: Vec::new(),
         };
         Builder::init(input, result)
+    }
+
+    pub fn parse_rest<T>(mut self, body: T) -> Result<Response<T>, FromUtf8Err> {
+        let mut buf = Vec::new();
+        std::mem::swap(&mut buf, &mut self.rest);
+
+        let result = if self.headers.is_some() {
+            Builder::<NeedBody>::init(&buf, self)
+        } else {
+            if self.status.is_some() {
+                Builder::<NeedHeader>::init(&buf, self)
+            } else {
+                if self.version.is_some() {
+                    Builder::<NeedStatus>::init(&buf, self)
+                } else {
+                    Builder::<NeedVersion>::init(&buf, self).version()?
+                }
+                .status()?
+            }
+            .headers()?
+        }
+        .body(body);
+
+        Ok(result)
     }
 }
 
@@ -61,7 +82,12 @@ impl<'a> Builder<'a, NeedVersion> {
         let (rest, http_version) = terminated(http_version, tag(" "))(self.input)
             .map_err(|e| e.into_parse_error(ErrorKind::Version))?;
 
-        let version = Version::from_utf8(http_version)?;
+        let version = match http_version {
+            b"HTTP/0.9" => Version::HTTP_09,
+            b"HTTP/1.0" => Version::HTTP_10,
+            b"HTTP/1.1" => Version::HTTP_11,
+            _ => unreachable!(),
+        };
 
         self.result.version = Some(version);
 
@@ -137,15 +163,17 @@ impl<'a> Builder<'a, NeedHeader> {
 }
 
 impl<'a> Builder<'a, NeedBody> {
-    pub fn body(self) -> Response<Vec<u8>> {
+    pub fn body<T>(self, body: T) -> Response<T> {
         unsafe {
-            let mut builder = Response::builder().version(self.result.version.unwrap_unchecked()).status(self.result.status.unwrap_unchecked());
-            
+            let mut builder = Response::builder()
+                .version(self.result.version.unwrap_unchecked())
+                .status(self.result.status.unwrap_unchecked());
+
             for (name, value) in self.result.headers.unwrap_unchecked().iter() {
                 builder = builder.header(name.clone(), value);
             }
 
-            builder.body(self.input.to_vec()).unwrap()
+            builder.body(body).unwrap()
         }
     }
 }

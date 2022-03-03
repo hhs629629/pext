@@ -35,7 +35,7 @@ impl PartialRequest {
         Builder::init(input, result)
     }
 
-    pub fn parse_rest(mut self) -> Result<Request<Vec<u8>>, FromUtf8Err> {
+    pub fn parse_rest<T>(mut self, body: T) -> Result<Request<T>, FromUtf8Err> {
         let mut buf = Vec::new();
         std::mem::swap(&mut buf, &mut self.rest);
 
@@ -59,7 +59,7 @@ impl PartialRequest {
             }
             .headers()?
         }
-        .body();
+        .body(body);
 
         Ok(result)
     }
@@ -141,7 +141,12 @@ impl<'a> Builder<'a, NeedVersion> {
         let (rest, http_version) = terminated(http_version, tag("\r\n"))(self.input)
             .map_err(|e| e.into_parse_error(ErrorKind::Version))?;
 
-        let version = Version::from_utf8(http_version)?;
+        let version = match http_version {
+            b"HTTP/0.9" => Version::HTTP_09,
+            b"HTTP/1.0" => Version::HTTP_10,
+            b"HTTP/1.1" => Version::HTTP_11,
+            _ => unreachable!(),
+        };
 
         self.result.version = Some(version);
 
@@ -194,7 +199,7 @@ impl<'a> Builder<'a, NeedHeader> {
 }
 
 impl<'a> Builder<'a, NeedBody> {
-    pub fn body(self) -> Request<Vec<u8>> {
+    pub fn body<T>(self, body: T) -> Request<T> {
         unsafe {
             let mut builder = Request::builder()
                 .method(self.result.method.unwrap_unchecked())
@@ -205,7 +210,7 @@ impl<'a> Builder<'a, NeedBody> {
                 builder = builder.header(name.clone(), value);
             }
 
-            builder.body(self.input.to_vec()).unwrap()
+            builder.body(body).unwrap()
         }
     }
 }

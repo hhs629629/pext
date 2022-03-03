@@ -1,7 +1,7 @@
 use crate::FromUtf8Err;
 
-pub trait FromUtf8 {
-    fn from_utf8<'a>(buf: &'a [u8]) -> Result<Self, FromUtf8Err>
+pub trait FromUtf8<T> {
+    fn from_utf8<'a>(buf: &'a [u8], body: T) -> Result<Self, FromUtf8Err>
     where
         Self: Sized;
 }

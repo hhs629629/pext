@@ -2,20 +2,6 @@ use http::{HeaderMap, StatusCode, Version};
 
 use crate::{FromUtf8, FromUtf8Err, IntoUtf8};
 
-impl FromUtf8 for Version {
-    fn from_utf8<'a>(buf: &'a [u8]) -> Result<Self, FromUtf8Err>
-    where
-        Self: Sized,
-    {
-        Ok(match buf {
-            b"HTTP/0.9" => Version::HTTP_09,
-            b"HTTP/1.0" => Version::HTTP_10,
-            b"HTTP/1.1" => Version::HTTP_11,
-            _ => unreachable!(),
-        })
-    }
-}
-
 impl IntoUtf8 for Version {
     fn into_utf8(&self) -> Result<Vec<u8>, ()> {
         Ok(match self {
